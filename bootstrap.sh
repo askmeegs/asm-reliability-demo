@@ -73,9 +73,11 @@ chmod +x install_asm
 --enable_all
 
 # Label the default namespace for istio injection 
-# TODO - Use sed to get this revision dynamically, since it will change in subsequent ASM Versions 
-# https://cloud.google.com/service-mesh/docs/scripted-install/gke-install#deploying_and_redeploying_workloads
-REVISION="asm-195-2"  
+# get "revision" from directory created by install_asm script 
+for dir in asm-${CLUSTER_1_NAME}/istio-*/ ; do
+    export REVISION=`basename $dir`
+    echo "Revision is: $REVISION" 
+done
 kubectl label namespace default istio-injection- istio.io/rev=$REVISION --overwrite
 
 # Set up Workload Identity for the default namespace, incl. BoA specific permissions 
