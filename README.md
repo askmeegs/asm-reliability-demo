@@ -47,11 +47,15 @@ If you navigate to that URL in a browser, you should see:
 
 ## Part A - Exploring ASM's Generated Metrics
 
-#### 1. Open the Anthos Service Mesh dashboard in the Google Cloud Console by navigating to this link: https://console.cloud.google.com/anthos/services. Make sure the project ID at the top of the screen is set to your project.
+#### 1. Open the [Anthos Service Mesh dashboard in the Google Cloud Console](https://console.cloud.google.com/anthos/services).
+
+Make sure the project ID at the top of the screen is set to your project.
 
 #### 2. View the Anthos Service Mesh **Service List.** 
 
 You should see all the Bank of Anthos services in the list, including a `frontend`, `loadgenerator`, several backends (eg. `contacts`, `balancereader`), and two in-cluster databases (`accounts-db`, `ledger-db`). You should also see metrics populated for all the services except the loadgen (which only produces traffic, does not receive traffic), and the two databases (ASM doesn't yet support raw TCP traffic). 
+
+**Note** - it may take 5-10 minutes for metrics to show up for every service. 
 
 ![](screenshots/service-list.png)
 
@@ -107,7 +111,7 @@ Now that we know what SLOs are and how ASM generates the SLI metrics for us, let
 
 ![](screenshots/slo1.png)
 
-#### 3. Set the latency threshold to **10ms**. Click **Continue**. 
+#### 3. Set the latency threshold to **100ms**. Click **Continue**. 
 
 ![](screenshots/slo2.png)
 
@@ -123,7 +127,9 @@ Now that we know what SLOs are and how ASM generates the SLI metrics for us, let
 
 ![](screenshots/passing-slo.png)
 
-#### 7. Click the drop-down error in your SLO, and click **Error budget.** The [error budget of an SLO](https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring#defn-error-budget) is 1 minus the SLO - so in our case, we have an error budget of **1%** because the SLO performance goal is **99%**. Because our SLO is based on latency, the error budget means that only 1% (or less) of requests in the last day can take longer than 10 milliseconds. 
+#### 7. Click the drop-down error in your SLO, and click **Error budget.** 
+
+The [error budget of an SLO](https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring#defn-error-budget) is `1 minus the SLO` - so in our case, we have an error budget of **1%** because the SLO performance goal is **99%**. Because our SLO is based on latency, the error budget means that only 1% (or less) of requests in the last day can take longer than 10 milliseconds. 
 
 ## Part C - Setting up SLO Alerting 
 

@@ -62,22 +62,21 @@ echo "🕸️ Installing Anthos Service Mesh on your GKE cluster..."
 gcloud config set compute/zone $ZONE
 curl https://storage.googleapis.com/csm-artifacts/asm/install_asm_1.9 > install_asm
 curl https://storage.googleapis.com/csm-artifacts/asm/install_asm_1.9.sha256 > install_asm.sha256
-sha256sum -c install_asm.sha256
+sha256sum -c --ignore-missing install_asm.sha256 
 chmod +x install_asm
 
 ./install_asm \
 --project_id $PROJECT_ID \
 --cluster_name $CLUSTER_NAME \
 --cluster_location $ZONE \
---mode install \
+--mode install --output_dir ${CLUSTER_NAME} \
 --enable_all
 
-# Label the default namespace for istio injection 
-# get "revision" from directory created by install_asm script 
-for dir in asm-${CLUSTER_1_NAME}/istio-*/ ; do
-    export REVISION=`basename $dir`
-    echo "Revision is: $REVISION" 
-done
+# get revision (in-cluster control plane method)
+kubectl -n istio-system get pods -l app=istiod -o json > istio-pods.json
+REVISION=`jq -r '.items[0].metadata.labels."istio.io/rev"' istio-pods.json`
+echo "Revision is: $REVISION"
+rm istio-pods.json
 kubectl label namespace default istio-injection- istio.io/rev=$REVISION --overwrite
 
 # Set up Workload Identity for the default namespace, incl. BoA specific permissions 
