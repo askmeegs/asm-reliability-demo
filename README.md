@@ -107,11 +107,11 @@ Now that we know what SLOs are and how ASM generates the SLI metrics for us, let
 
 ![](screenshots/txn-overview.png)
 
-#### 2. Set the SLI to **latency** and **request-based**. Click **Continue.** 
+#### 2. Set the SLI to **Availability** and **request-based**. Click **Continue.** 
 
 ![](screenshots/slo1.png)
 
-#### 3. Set the latency threshold to **100ms**. Click **Continue**. 
+#### 3. View the **Define SLI Details** preview window, then click **continue.** 
 
 ![](screenshots/slo2.png)
 
@@ -123,13 +123,15 @@ Now that we know what SLOs are and how ASM generates the SLI metrics for us, let
 
 ![](screenshots/slo4.png)
 
-#### 6. You should be redirected to the Health page for the transactionhistory service, and you should see your new SLO in the list. It should be passing, with a green check-mark on the left side of the screen. 
+#### 6. You should be redirected to the Health page for the transactionhistory service, and you should see your new availability SLO in the list. It should be passing, with a green check-mark on the left side of the screen. 
 
 ![](screenshots/passing-slo.png)
 
 #### 7. Click the drop-down error in your SLO, and click **Error budget.** 
 
-The [error budget of an SLO](https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring#defn-error-budget) is `1 minus the SLO` - so in our case, we have an error budget of **1%** because the SLO performance goal is **99%**. Because our SLO is based on latency, the error budget means that only 1% (or less) of requests in the last day can take longer than 10 milliseconds. 
+The [error budget of an SLO](https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring#defn-error-budget) is `1 minus the SLO` - so in our case, we have an error budget of **1%** ("bad" requests over the last 24 hours) because the SLO performance goal is **99%**. 
+
+![](screenshots/error-budget.png)
 
 ## Part C - Setting up SLO Alerting 
 
@@ -147,14 +149,16 @@ You can set up alerting using the [Console](https://cloud.google.com/stackdriver
 
 #### 4. Return to the ASM dashboard and navigate back to [your transactionhistory Service Health dashboard](https://console.cloud.google.com/anthos/services/service/default/transactionhistory/health). 
 
-#### 5. Next to your Latency SLO, click **Create SLO Alert.** 
+#### 5. Next to your Availability SLO, click **Create SLO Alert.** 
 
-ASM SLO alerting is based on something called **[burn rate](https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring/alerting-on-budget-burn-rate)**, which is a measure of how fast you're consuming, or "burning," through your error budget. What this means is that you can set up an alert to fire even before your SLO fails. 
+ASM SLO alerting is based on something called **[burn rate](https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring/alerting-on-budget-burn-rate)**, which is a measure of how fast you're consuming, or "burning," through your error budget. What this means is that you can set up an alert to fire before your SLO actually fails. 
 
 #### 6. In the Create SLO Alert window, set the following fields:
-- Keep the default Display Name (`Burn rate on 99% - Latency - Rolling day`). 
+- Keep the default Display Name (`Burn rate on 99% - Availability - Rolling day`). 
 - Set `Lookback Duration` to **1 minute**. 
 - Keep the default `Burn rate threshold` (10).
+
+![](screenshots/create-slo-alert.png)
 
 Then, click **Next.** 
 
@@ -172,9 +176,9 @@ Now on the right side of the Health view for transactionhistory, you should see 
 
 ## Part D - Debugging a Service with ASM 
 
-Let's simulate a service outage in order to break our transactionhistory SLO and fire the alert to our email. To do this, we'll pretend that we're updating the transactionhistory service with some new configuration, and this causes an unexpected outage. 
+Let's simulate a service outage in order to break our transactionhistory SLO and fire the alert to our email. To do this, we'll simulate a new release of transactionhistory that causes a 100% error rate - effectively bringing down the entire service. We have provided a transactionhistory image (`gcr.io/bank-of-anthos/transactionhistory:v0.4.3-simulate-outage`) that returns a 500 error for every HTTP endpoint.   
 
-#### 1. Return to the terminal, and apply an updated transactionhistory deployment. (To simulate an outage scenario, this Deployment has 5 seconds of injected latency for every request.) 
+#### 1. Return to the terminal, and apply the simulated outage resource. 
 
 ```
 kubectl apply -f simulate-outage/transactionhistory.yaml
@@ -187,52 +191,18 @@ deployment.apps/transactionhistory configured
 service/transactionhistory unchanged
 ```
 
-#### 2. Wait for the new transactionhistory pod to be ready, and for the old pod to terminate.  
+#### 2. Navigate back to the ASM dashboard for the transactionhistory service, and from the left sidebar, click **Metrics.** 
 
-```
-kubectl get pods | grep transactionhistory
-```
-
-Expected output (after 1-2 minutes): 
-
-```
-transactionhistory-68bb6559b4-b9n2v   2/2     Terminating   0          74m
-transactionhistory-6b699f4b96-gdqnv   2/2     Running       0          72s
-```
-
-#### 3. Navigate back to the ASM dashboard for the transactionhistory service, and from the left sidebar, click **Metrics.** 
-
-Scroll down to **Latency.** We should be able to watch the generated metrics flow in, and we should see a major latency spike, from ~5 milliseconds on average per request, up to 4 or 5 seconds. 
+Scroll down to **Error rate.** We should be able to watch the generated metrics flow in, and we should eventually see a 100% error rate for transactionhistory, 
 
 ![](screenshots/latency-spike.png)
 
 Under the hood, the ASM SLO is rapidly burning through its error budget for the number of transactionhistory requests that can exceed the 10 millisecond threshold. (Because 100% of requests, now, exceed that SLO threshold.) This means we just caused transactionhistory to exceed its burn rate threshold of 10%. 
 
-#### 4. Navigate to your email inbox to view the SLO alert email.
+#### 3. Return to the transactionhistory "Health" view. You should soon see an alert firing. 
 
-Let's pretend that we don't know what's causing this latency in transactionhistory - in a real outage scenario, it's unlikely that you'll know right away what caused the issue. ASM and Google Cloud provide several tools to help you debug during service degradation. 
 
-####  5. From the transactionhistory view in the ASM dashboard, click **Diagnostics.**
-
-Here, we can see all recent error logs for this service. 
-
-![](screenshots/diagnostics.png)
-
-We can also click "Open Logs Viewer" to see Info, Warning, and Debug-level logs for this service. 
-
-![](screenshots/all-logs.png)
-
-We can also view Traces for the transactionhistory service. Traces allow us to see how long each part of a request takes. This feature is especially helpful in a microservices setup, where "cascading failures" cause problems in 1 service to propagate to other upstream services. Anthos Service Mesh supports "service level traces" (meaning you can see traces down to the service-level). You can use OpenTelemetry or OpenCensus to instrument your services to allow for more granular, request-level traces within each service (for instance, how long a specific function spent on a given request). The Bank of Anthos dashboard has been instrumented for request-level traces. 
-
-#### 6. Navigate to the [Cloud Trace dashboard](https://console.cloud.google.com/traces/list). Click on **Trace list.** 
-
-![](screenshots/trace-list.png)
-
-You should see most requests only take a few milliseconds, but you should also see a few recent outliers taking ~5 seconds. 
-
-#### 7. Click on one of those outlier traces - it should correspond to a request involving the transaction history service. (So if we didn't know which service update caused the SLO failure, now we have an idea that transactionhistory is involved.) If you scroll down, you should see details about this trace - for instance, the method  (`getTransactions`) and specific URL. 
-
-![](screenshots/txn-trace.png)
+### 4. Navigate to your email inbox. 
 
 ## Learn More 
 
